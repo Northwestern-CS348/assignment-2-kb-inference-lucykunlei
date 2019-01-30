@@ -128,7 +128,47 @@ class KnowledgeBase(object):
         printv("Retracting {!r}", 0, verbose, [fact_or_rule])
         ####################################################
         # Student code goes here
-        
+        ## check if the fact_or_rule exists in the kb
+        if (isinstance(fact_or_rule, Fact)):
+            if (fact_or_rule in self.facts):
+                arg_fact = self._get_fact(fact_or_rule)
+                self.kb_retract_recursive(arg_fact)
+
+    def kb_retract_recursive(self, fact_or_rule):
+        if fact_or_rule.supported_by:
+            if fact_or_rule.asserted:
+                fact_or_rule.asserted = False
+            return
+        if isinstance(fact_or_rule, Fact) and (fact_or_rule in self.facts):
+            for f in fact_or_rule.supports_facts:
+                for fact, rule in f.supported_by:
+                    if fact_or_rule==fact:
+                        f.supported_by.remove([fact, rule])
+                if not f.supported_by and not f.asserted:
+                    self.kb_retract_recursive(f)
+            for r in fact_or_rule.supports_rules:
+                for fact, rule in r.supported_by:
+                    if fact_or_rule==fact:
+                        r.supported_by.remove([fact, rule])
+                if not r.supported_by and not r.asserted:
+                    self.kb_retract_recursive(r)
+            self.facts.remove(fact_or_rule)
+        elif isinstance(fact_or_rule, Rule) and (fact_or_rule in self.rules):
+            for f in fact_or_rule.supports_facts:
+                for fact, rule in f.supported_by:
+                    if fact_or_rule==rule:
+                        f.supported_by.remove([fact, rule])
+                if not f.supported_by and not f.asserted:
+                    self.kb_retract_recursive(f)
+            for r in fact_or_rule.supports_rules:
+                for fact, rule in r.supported_by:
+                    if fact_or_rule==rule:
+                        r.supported_by.remove([fact, rule])
+                if not r.supported_by and not r.asserted:
+                    self.kb_retract_recursive(r)
+            self.rules.remove(fact_or_rule)
+
+
 
 class InferenceEngine(object):
     def fc_infer(self, fact, rule, kb):
@@ -146,3 +186,22 @@ class InferenceEngine(object):
             [fact.statement, rule.lhs, rule.rhs])
         ####################################################
         # Student code goes here
+        binding0 = match(fact.statement, rule.lhs[0])
+        new_lhs = []
+        if binding0:
+            if (len(rule.lhs)>1):
+                for stmt in rule.lhs[1:]:
+                    new_lhs.append(instantiate(stmt, binding0))
+                new_rhs = instantiate(rule.rhs, binding0)
+                new_rule = Rule([new_lhs,new_rhs], [[fact, rule]])
+                kb.kb_add(new_rule)
+                new_rule = kb._get_rule(new_rule)
+                fact.supports_rules.append(new_rule)
+                rule.supports_rules.append(new_rule)
+            else:
+                new_fact_stmt = instantiate(rule.rhs, binding0)
+                new_fact = Fact(new_fact_stmt, [[fact, rule]])
+                kb.kb_add(new_fact)
+                new_fact = kb._get_fact(new_fact)
+                fact.supports_facts.append(new_fact)
+                rule.supports_facts.append(new_fact)
